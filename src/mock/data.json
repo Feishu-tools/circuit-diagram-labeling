@@ -1,0 +1,43 @@
+[
+    {
+        "task_id": "task_001",
+        "image_url": "https://algo-public-static.xizi-ai.com/image_info_extract/images/e1abddd4-8783-42b9-bfb5-48644c4ac1d9.jpeg",
+        "image_name": "电路图-001.jpeg",
+        "label_info": [
+            {
+                "id": 1,
+                "x": 150,
+                "y": 200,
+                "label": "R1"
+            },
+            {
+                "id": 2,
+                "x": 320,
+                "y": 180,
+                "label": "C1"
+            }
+        ],
+        "status": "done"
+    },
+    {
+        "task_id": "task_002",
+        "image_url": "https://algo-public-static.xizi-ai.com/image_info_extract/images/e1abddd4-8783-42b9-bfb5-48644c4ac1d9.jpeg",
+        "image_name": "电路图-002.jpeg",
+        "label_info": [],
+        "status": "pending"
+    },
+    {
+        "task_id": "task_003",
+        "image_url": "https://algo-public-static.xizi-ai.com/image_info_extract/images/e1abddd4-8783-42b9-bfb5-48644c4ac1d9.jpeg",
+        "image_name": "电路图-003.jpeg",
+        "label_info": [
+            {
+                "id": 1,
+                "x": 400,
+                "y": 300,
+                "label": ""
+            }
+        ],
+        "status": "pending"
+    }
+]
