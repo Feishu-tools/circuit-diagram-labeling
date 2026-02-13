@@ -132,7 +132,9 @@ export async function getTableRecordIds(options: GetRecordIdsOptions): Promise<R
 // ==================== Watch Operations ====================
 
 /**
- * Watch selection change and return all fields of the selected row
+ * Watch selection change and return all fields of the selected row.
+ * When a table switch happens (tableId changes, no recordId yet),
+ * we still report the tableId so callers can detect table changes.
  */
 export function watchRowAllFields(callback: (rowData: RowData) => void): () => void {
     const off = bitable.base.onSelectionChange(async ({ data }) => {
@@ -140,8 +142,14 @@ export function watchRowAllFields(callback: (rowData: RowData) => void): () => v
             const tableId = data.tableId;
             const recordId = data.recordId;
 
-            if (!tableId || !recordId) {
-                callback({ success: false, error: '未选中有效记录' });
+            if (!tableId) {
+                callback({ success: false, error: '未选中有效表格' });
+                return;
+            }
+
+            // Table switched but no record selected yet — report tableId so App can re-init
+            if (!recordId) {
+                callback({ success: true, tableId, data: [] });
                 return;
             }
 
