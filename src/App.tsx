@@ -218,13 +218,53 @@ export default function App() {
       // Determine the effective record list for index lookup
       let effectiveIds = recordIds;
 
-      // If table changed, reload record ID list
+      // If table changed, do a full re-initialization for the new table
       if (rowData.tableId && rowData.tableId !== currentTableId) {
+        console.log('检测到表格切换:', currentTableId, '->', rowData.tableId);
         setCurrentTableId(rowData.tableId);
+
         const sortedIds = await fetchSortedRecordIds(rowData.tableId);
         setRecordIds(sortedIds);
-        effectiveIds = sortedIds; // use fresh list, not stale closure
-        console.log('表格记录总数(已按任务ID排序):', sortedIds.length);
+        effectiveIds = sortedIds;
+        console.log('新表格记录总数(已按任务ID排序):', sortedIds.length);
+
+        if (sortedIds.length === 0) {
+          setCurrentTask(null);
+          setAllFieldsData([]);
+          setCurrentRecordIndex(-1);
+          return;
+        }
+
+        // Find first unannotated record in the new table
+        const startIndex = await findFirstUnannotatedIndex(rowData.tableId, sortedIds);
+        console.log('新表格首个未标注记录索引:', startIndex + 1, '/', sortedIds.length);
+
+        // Load that record
+        const newRowData = await getRowAllFields({
+          tableId: rowData.tableId,
+          recordId: sortedIds[startIndex],
+          useCurrentSelection: false,
+        });
+
+        if (newRowData.success && newRowData.data) {
+          setCurrentRecordIndex(startIndex);
+          setAllFieldsData(newRowData.data);
+          const task = extractTaskFromFields(newRowData.data);
+          if (task) {
+            setCurrentTask(task);
+            setSelectedPointId(null);
+            setHistory([]);
+            setIsDirty(false);
+            console.log('切换表格后自动加载任务:', task.image_name || task.task_id);
+            writeDataToField('标注中', {
+              fieldName: STATUS_FIELD,
+              useCurrentSelection: false,
+              tableId: rowData.tableId,
+              recordId: sortedIds[startIndex],
+            });
+          }
+        }
+        return; // table switch handled, skip normal selection logic
       }
 
       // Update current record index using effectiveIds
@@ -241,6 +281,7 @@ export default function App() {
           setCurrentTask(task);
           setSelectedPointId(null);
           setHistory([]);
+          setIsDirty(false);
         }
       } else {
         setAllFieldsData([]);
@@ -251,7 +292,7 @@ export default function App() {
     return () => {
       unwatchRowFields();
     };
-  }, [currentTableId, recordIds, fetchSortedRecordIds]);
+  }, [currentTableId, recordIds, fetchSortedRecordIds, findFirstUnannotatedIndex]);
 
   // ==================== Scale tracking ====================
   useEffect(() => {
