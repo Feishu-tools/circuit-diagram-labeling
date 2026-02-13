@@ -215,19 +215,23 @@ export default function App() {
 
       console.log('用户选中记录:', rowData);
 
+      // Determine the effective record list for index lookup
+      let effectiveIds = recordIds;
+
       // If table changed, reload record ID list
       if (rowData.tableId && rowData.tableId !== currentTableId) {
         setCurrentTableId(rowData.tableId);
         const sortedIds = await fetchSortedRecordIds(rowData.tableId);
         setRecordIds(sortedIds);
+        effectiveIds = sortedIds; // use fresh list, not stale closure
         console.log('表格记录总数(已按任务ID排序):', sortedIds.length);
       }
 
-      // Update current record index
-      if (rowData.recordId && recordIds.length > 0) {
-        const index = recordIds.indexOf(rowData.recordId);
+      // Update current record index using effectiveIds
+      if (rowData.recordId && effectiveIds.length > 0) {
+        const index = effectiveIds.indexOf(rowData.recordId);
         setCurrentRecordIndex(index);
-        console.log('当前记录索引:', index + 1, '/', recordIds.length);
+        console.log('当前记录索引:', index + 1, '/', effectiveIds.length);
       }
 
       if (rowData.data && rowData.data.length > 0) {
@@ -305,24 +309,26 @@ export default function App() {
 
   const handleUpdateLabel = useCallback(
     (id: number, label: string) => {
+      pushHistory();
       updateTask((task) => ({
         ...task,
         label_info: task.label_info.map((p) => (p.id === id ? { ...p, label } : p)),
       }));
       setIsDirty(true);
     },
-    [updateTask]
+    [pushHistory, updateTask]
   );
 
   const handleMovePoint = useCallback(
     (id: number, x: number, y: number) => {
+      pushHistory();
       updateTask((task) => ({
         ...task,
         label_info: task.label_info.map((p) => (p.id === id ? { ...p, x, y } : p)),
       }));
       setIsDirty(true);
     },
-    [updateTask]
+    [pushHistory, updateTask]
   );
 
   const handleUndo = useCallback(() => {
@@ -435,7 +441,7 @@ export default function App() {
       if (!USE_MOCK && currentTask && recordIds[currentIndex]) {
         await saveToLarkBase(currentTask, recordIds[currentIndex], '标注中');
       }
-      loadRowByIndex(currentIndex - 1);
+      await loadRowByIndex(currentIndex - 1);
     }
   }, [currentIndex, currentTask, recordIds, saveToLarkBase, loadRowByIndex]);
 
@@ -445,7 +451,7 @@ export default function App() {
       if (!USE_MOCK && currentTask && recordIds[currentIndex]) {
         await saveToLarkBase(currentTask, recordIds[currentIndex], '标注中');
       }
-      loadRowByIndex(currentIndex + 1);
+      await loadRowByIndex(currentIndex + 1);
     }
   }, [currentIndex, totalTasks, currentTask, recordIds, saveToLarkBase, loadRowByIndex]);
 
@@ -467,17 +473,19 @@ export default function App() {
       return;
     }
 
-    const newStatus = currentTask.status === 'done' ? 'pending' : 'done';
-    updateTask((task) => ({ ...task, status: newStatus }));
+    // If already done and not dirty, do nothing (no toggle back to pending)
+    if (currentTask.status === 'done') return;
+
+    // Mark as done
+    updateTask((task) => ({ ...task, status: 'done' as const }));
     setIsDirty(false);
 
     if (!USE_MOCK && recordIds[currentIndex]) {
-      const statusText = newStatus === 'done' ? '已标注' : '标注中';
-      const updatedTask = { ...currentTask, status: newStatus as 'done' | 'pending' };
-      saveToLarkBase(updatedTask, recordIds[currentIndex], statusText);
+      const updatedTask = { ...currentTask, status: 'done' as const };
+      saveToLarkBase(updatedTask, recordIds[currentIndex], '已标注');
 
-      // If marking done, auto-advance to next row
-      if (newStatus === 'done' && currentIndex < totalTasks - 1) {
+      // Auto-advance to next row
+      if (currentIndex < totalTasks - 1) {
         setTimeout(() => loadRowByIndex(currentIndex + 1), 300);
       }
     }

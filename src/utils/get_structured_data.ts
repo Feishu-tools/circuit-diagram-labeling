@@ -174,7 +174,10 @@ export function watchSelectionData(callback: (data: any) => void): () => void {
 // ==================== Write Operations ====================
 
 /**
- * Write a text value to a field by name
+ * Write a value to a field by name.
+ * Automatically detects field type and formats accordingly:
+ * - SingleSelect / MultiSelect: look up option by name, auto-create if missing
+ * - Text / Url / other: write as text segments
  */
 export async function writeDataToField(value: string, options: WriteOptions) {
     try {
@@ -199,9 +202,46 @@ export async function writeDataToField(value: string, options: WriteOptions) {
             return { success: false, error: `找不到字段 "${options.fieldName}"` };
         }
 
-        await table.setCellValue(targetField.id, recordId, [
-            { type: 'text' as const, text: value } as any,
-        ]);
+        // Handle SingleSelect / MultiSelect fields
+        if (
+            targetField.type === FieldType.SingleSelect ||
+            targetField.type === FieldType.MultiSelect
+        ) {
+            const field = await table.getField(targetField.id);
+            const selectField = field as any; // ISingleSelectField / IMultiSelectField
+            const existingOptions = await selectField.getOptions();
+
+            let option = existingOptions.find(
+                (opt: { name: string }) => opt.name === value
+            );
+
+            // Auto-create option if it doesn't exist
+            if (!option) {
+                console.log(`选项 "${value}" 不存在，自动创建...`);
+                await selectField.addOption(value);
+                const updatedOptions = await selectField.getOptions();
+                option = updatedOptions.find(
+                    (opt: { name: string }) => opt.name === value
+                );
+            }
+
+            if (!option) {
+                return { success: false, error: `无法找到或创建选项 "${value}"` };
+            }
+
+            // SingleSelect: { id, text }, MultiSelect: [{ id, text }]
+            const cellValue =
+                targetField.type === FieldType.SingleSelect
+                    ? { id: option.id, text: option.name }
+                    : [{ id: option.id, text: option.name }];
+
+            await table.setCellValue(targetField.id, recordId, cellValue as any);
+        } else {
+            // Text / Url / other: write as text segments
+            await table.setCellValue(targetField.id, recordId, [
+                { type: 'text' as const, text: value } as any,
+            ]);
+        }
 
         return { success: true };
     } catch (error) {
